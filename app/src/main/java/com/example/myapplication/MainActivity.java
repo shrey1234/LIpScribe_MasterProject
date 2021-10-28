@@ -3,10 +3,12 @@ package com.example.myapplication;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 
+import com.chaquo.python.PyObject;
 import com.google.android.material.snackbar.Snackbar;
 
 import androidx.activity.result.ActivityResult;
@@ -32,7 +34,11 @@ import com.example.myapplication.databinding.ActivityMainBinding;
 
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.TextView;
 import android.widget.Toast;
+
+import com.chaquo.python.Python;
+import com.chaquo.python.android.AndroidPlatform;
 
 import java.io.File;
 
@@ -44,6 +50,7 @@ public class MainActivity extends AppCompatActivity {
     private static int CAMERA_PERMISSION_CODE = 100;
     ActivityResultLauncher<Intent> activityResultLauncher;
     private Uri videoPath;
+    TextView textView;
 
     private void recordVideo(){
         Intent intent = new Intent(MediaStore.ACTION_VIDEO_CAPTURE);
@@ -96,28 +103,58 @@ public class MainActivity extends AppCompatActivity {
         {
             Log.i("VIDEO_RECORD_TAG", "Camera is Detected");
             getCameraPermission();
-
         }
         else
         {
             Log.i("VIDEO_RECORD_TAG", "No Camera is not Detected");
-
         }
         activityResultLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(), new ActivityResultCallback<ActivityResult>() {
             @Override
             public void onActivityResult(ActivityResult result) {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-//                    Log.i("VIDEO_PATH_TAG", "path is"+result.getData());
-
                     videoPath = result.getData().getData();
-                    Log.i("videoPath_test", "path is"+videoPath);
-
+                    Log.i("Video_URI", "URI new is "+videoPath);
+//                    path is content://media/external/video/media/44
+                    executePython();
+                    getPath(videoPath);
+                    Log.i("Video_Path", "Path new  is "+getPath(videoPath));
+//                    /storage/emulated/0/Movies/VID_20211028_151758.mp4
                 }
             }
         });
     }
 
+    public void executePython()
+    {
+        if(!Python.isStarted())
+        {
+            Python.start(new AndroidPlatform(this));
+        }
+        Python py = Python.getInstance();
+//        PyObject pyObj = py.getModule("helloWorld");
+//        PyObject obj = pyObj.callAttr("main");
+        PyObject pyObj = py.getModule("preprocess");
+        PyObject obj = pyObj.callAttr("video_to_npy_array","/storage/emulated/0/Movies/VID_20211028_151758.mp4");
+        Log.i("python test", "msg is"+obj.toString());
+
+    }
+
+    public String getPath(Uri uri) {
+        Cursor cursor = null;
+        try {
+            String[] projection = {MediaStore.Images.Media.DATA};
+            cursor = getContentResolver().query(uri, projection, null, null, null);
+
+            int column_index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+            cursor.moveToFirst();
+            return cursor.getString(column_index);
+        }finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+    }
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
